@@ -10,7 +10,7 @@
 
 \begin{document}
 \maketitle
-\thispagestyle{empty} % optional: no page number on title page
+\thispagestyle{empty}
 \newpage
 
 \begin{abstract}
@@ -20,16 +20,19 @@
   Cílem této práce je identifikovat klíčové strukturní motivy chemických látek pomocí metodiky SHAP a Boruta-SHAP.
 \end{abstract}
 \newpage
-  
-\begin{Použité datové sady}
-  Pro QSPR modely byla využita datová sada AqSolDB, která obsahuje přibližně 10 000 chemických látek s jejich vlastností rozpustností ve vodě, která se dá použít například pro farmaceutické účely.
-\end{Použité datové sady}
 
-\begin{Random Forest}
-  Pro jeden z prvních modelů byla použita metoda Random Forest.
-  Pro QSPR byla užita již zmíněná datová sada AqSolDB.
+\section{Použité datové sady}
+\subsection{AqSolDB}
+Pro QSPR modely byla využita datová sada AqSolDB, která obsahuje přibližně 10 000 chemických látek s jejich vlastností rozpustností ve vodě, která se dá použít například pro farmaceutické účely.
 
-\end{Random Forest}
-  
+\subsection{Příprava dat}
+Před feednutím dat do modelu se musely chemické látky zapsané v SMILES formátu převést na ECFP fingerprint, ...
+
+\section{Použité metody}
+\subsection{Random Forest}
+Pro jeden z prvních modelů byla použita metoda Random Forest.
+Pro QSPR byla užita již zmíněná datová sada AqSolDB.
+
+... nějaký ty fancy grafíky here
 
 \end{document}

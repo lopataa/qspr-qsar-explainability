@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.31)  9 DEC 2025 11:52
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.31)  9 DEC 2025 12:15
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -391,14 +391,16 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 [1
 
 {/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-Overfull \hbox (2.10617pt too wide) in paragraph at lines 17--20
+Overfull \hbox (9.67992pt too wide) in paragraph at lines 17--21
 \OT1/cmr/m/n/10.95 fyzik^^Saln^^S^^Pch vlast-nost^^S^^P a bi-o-log-ick^^Se ak-t
-iv-ity chemick^^Sych l^^Satek. Mod-ely dosahuj^^S^^P vysok^^Se
+iv-ity chemick^^Sych l^^Satek. Tyto mod-ely se nap^^Tr^^S^^Pklad
  []
 
 
 
-[2] (/Users/michael/dev/delta/qspr-explainability/out/main.aux)
+[2]
+
+[3] (/Users/michael/dev/delta/qspr-explainability/out/main.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
@@ -410,19 +412,19 @@ Package rerunfilecheck Warning: File `main.out' has changed.
 (rerunfilecheck)                or use package `bookmark'.
 
 Package rerunfilecheck Info: Checksums for `main.out':
-(rerunfilecheck)             Before: 0A450BA559570034DCE0F945F32D73D9;131
-(rerunfilecheck)             After:  D9EBEBB1BDB666B48F51FF4399A736CE;108.
+(rerunfilecheck)             Before: B6B97F0DF1404E666B87A666E5D4CF02;376
+(rerunfilecheck)             After:  485F30DA378B632ADA7EBA2303745843;618.
  ) 
 Here is how much of TeX's memory you used:
- 10130 strings out of 473190
- 154231 string characters out of 5715800
- 553635 words of memory out of 5000000
- 33276 multiletter control sequences out of 15000+600000
- 563247 words of font info for 53 fonts, out of 8000000 for 9000
+ 10138 strings out of 473190
+ 154324 string characters out of 5715800
+ 554635 words of memory out of 5000000
+ 33279 multiletter control sequences out of 15000+600000
+ 563554 words of font info for 54 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,7n,79p,265b,441s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,7n,79p,265b,439s stack positions out of 10000i,1000n,20000p,200000b,200000s
 
-pdfTeX warning (dest): name{section.2} has been referenced but does not exist, 
+pdfTeX warning (dest): name{section.3} has been referenced but does not exist, 
 replaced by a fixed one
 
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb><
@@ -430,11 +432,11 @@ replaced by a fixed one
 usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></us
 r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/
 local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb>
-Output written on /Users/michael/dev/delta/qspr-explainability/out/main.pdf (2 
-pages, 67222 bytes).
+Output written on /Users/michael/dev/delta/qspr-explainability/out/main.pdf (3 
+pages, 76660 bytes).
 PDF statistics:
- 51 PDF objects out of 1000 (max. 8388607)
- 36 compressed objects within 1 object stream
- 5 named destinations out of 1000 (max. 500000)
- 17 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 64 PDF objects out of 1000 (max. 8388607)
+ 48 compressed objects within 1 object stream
+ 10 named destinations out of 1000 (max. 500000)
+ 25 words of extra memory for PDF output out of 10000 (max. 10000000)
 
