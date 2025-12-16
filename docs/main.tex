@@ -12,7 +12,7 @@
 \maketitle
 \thispagestyle{empty}
 \newpage
-
+TODO: Vsechno v bodech
 \begin{abstract}
   Quantitative Structure–Property Relationship (QSPR) a Quantitative Structure–Activity Relationship regresní model jsou často používané pro předpovídání fyzikálních vlastností a biologické aktivity chemických látek.
   Tyto modely se například používají pro farmaceutické účely, kde zjištění těchto vlastností by mohlo stát velký obnos peněz, tyto modely je mohou docela odhadnout.
@@ -25,13 +25,31 @@
 \subsection{AqSolDB}
 Pro QSPR modely byla využita datová sada AqSolDB, která obsahuje přibližně 10 000 chemických látek s jejich vlastností rozpustností ve vodě, která se dá použít například pro farmaceutické účely.
 
+\subsection{Neco tamto}
+
+
 \subsection{Příprava dat}
 Před feednutím dat do modelu se musely chemické látky zapsané v SMILES formátu převést na ECFP fingerprint, ...
+
+\subsubsection{ECFP}
+\subsubsection{One-hot encoding}
+
+\section{Validace modelů}
+\subsection{ROC}
+\subsection{Cross Validation}
 
 \section{Použité metody}
 \subsection{Random Forest}
 Pro jeden z prvních modelů byla použita metoda Random Forest.
 Pro QSPR byla užita již zmíněná datová sada AqSolDB.
+
+\subsection{XGBoost}
+
+
+\subsection{SHAP}
+\subsection{Boruta-SHAP}
+
+
 
 ... nějaký ty fancy grafíky here
 
