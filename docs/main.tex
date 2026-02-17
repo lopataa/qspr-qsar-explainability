@@ -12,45 +12,183 @@
 \maketitle
 \thispagestyle{empty}
 \newpage
-TODO: Vsechno v bodech
+\section*{Motivace}
+\begin{itemize}
+  \item Experimentální měření vlastností (např. solubility / rozpustnosti) je časově i finančně náročné.
+  \item QSPR/QSAR modely umožňují rychlé predikce z chemické struktury.
+  \item Interpretovatelnost je klíčová: potřebujeme vědět, které motivy ovlivňují predikci.
+\end{itemize}
+\section*{Hlavní zjištění}
+\begin{itemize}
+  \item Výkon modelů je stabilní při křížové validaci a citlivý na parametry ECFP.
+  \item Volba radiusu a počtu bitů výrazně ovlivňuje přesnost i interpretovatelnost.
+  \item SHAP a Boruta-SHAP zvýrazňují malou množinu klíčových bitů fingerprintu.
+  \item Binarizovaná verze problému umožňuje ROC srovnání modelů.
+\end{itemize}
+\section*{Výstupy a přínos}
+\begin{itemize}
+  \item Sada grafů výkonu a stability (MAE/RMSE, ROC, paritní grafy).
+  \item Žebříčky nejdůležitějších bitů a jejich relativní vliv na predikci.
+  \item Postup pro mapování bitů fingerprintu na konkrétní strukturní motivy.
+  \item Ověření výkonu QSPR/QSAR modelů na reálné datové sadě.
+  \item Identifikace klíčových strukturních motivů ovlivňujících predikci.
+  \item Porovnání Random Forest vs. XGBoost z hlediska výkonu i vysvětlitelnosti.
+\end{itemize}
 \begin{abstract}
-  Quantitative Structure–Property Relationship (QSPR) a Quantitative Structure–Activity Relationship regresní model jsou často používané pro předpovídání fyzikálních vlastností a biologické aktivity chemických látek.
-  Tyto modely se například používají pro farmaceutické účely, kde zjištění těchto vlastností by mohlo stát velký obnos peněz, tyto modely je mohou docela odhadnout.
-  Modely dosahují vysoké přesnosti, jak dokazuje část této práce, ale jejich rozhodování je často složité pochopit.
-  Cílem této práce je identifikovat klíčové strukturní motivy chemických látek pomocí metodiky SHAP a Boruta-SHAP.
+  \begin{itemize}
+    \item QSPR a QSAR regresní modely se využívají pro predikci fyzikálně-chemických vlastností a biologické aktivity látek.
+    \item V praxi snižují náklady na experimentální měření (např. ve farmaceutickém výzkumu).
+    \item Přesnost moderních modelů je vysoká, ale jejich rozhodování bývá málo interpretovatelné.
+    \item Interpretace pomocí SHAP a Boruta-SHAP ukazuje, které strukturní motivy mají největší vliv na predikci.
+  \end{itemize}
 \end{abstract}
 \newpage
 
 \section{Použité datové sady}
 \subsection{AqSolDB}
-Pro QSPR modely byla využita datová sada AqSolDB, která obsahuje přibližně 10 000 chemických látek s jejich vlastností rozpustností ve vodě, která se dá použít například pro farmaceutické účely.
+\begin{itemize}
+  \item Datová sada obsahuje zhruba 10\,000 organických látek s anotovanou solubility ve vodě.
+  \item Vstup tvoří struktura ve formátu SMILES a cílová veličina je log solubility.
+  \item Vhodná pro QSPR úlohu: vlastnost je fyzikálně-chemická, kontinuální a měřitelná.
+\end{itemize}
 
 \subsection{Neco tamto}
+\begin{itemize}
+  \item Doplňková datová sada pro QSAR (biologická aktivita nebo toxikologické endpointy).
+  \item Slouží k ověření, že interpretovatelnost metod funguje i mimo QSPR doménu.
+  \item QSAR data lze použít pro přímé porovnání s QSPR výsledky.
+\end{itemize}
 
 
 \subsection{Příprava dat}
-Před feednutím dat do modelu se musely chemické látky zapsané v SMILES formátu převést na ECFP fingerprint, ...
+\begin{itemize}
+  \item Vstupy jsou ve formátu SMILES a je nutné je převést na číselnou reprezentaci.
+  \item Použit ECFP (Morgan) fingerprint: binární vektor zachycující lokální strukturní motivy.
+  \item Odstranění nevalidních SMILES a záznamů s chybějící cílovou hodnotou.
+  \item Binarizace cíle (nad/pod medián) použita pro ROC analýzu.
+\end{itemize}
 
 \subsubsection{ECFP}
+\begin{itemize}
+  \item Parametry: radius (počet vazebních kroků) a počet bitů fingerprintu.
+  \item Implementace přes RDKit (Morgan fingerprint).
+  \item Citlivost na volbu parametrů testována v experimentech s gridem.
+\end{itemize}
 \subsubsection{One-hot encoding}
+\begin{itemize}
+  \item Alternativní jednoduchá reprezentace (např. přítomnost funkčních skupin).
+  \item One-hot slouží jako srovnávací baseline, hlavní reprezentací je ECFP.
+\end{itemize}
 
-\section{Validace modelů}
+\section{Model validation}
 \subsection{ROC}
+\begin{itemize}
+  \item ROC a AUC použity pro binarizovanou verzi problému (nad/pod medián).
+  \item Umožňuje srovnání modelů i při odlišných prahových hodnotách.
+  \item Využito pro diagnostiku stability výkonu.
+\end{itemize}
 \subsection{Cross Validation}
+\begin{itemize}
+  \item Cross validation (typicky 5-fold) pro robustní odhad generalizace.
+  \item Evaluation metrics: MAE, RMSE, případně R\textsuperscript{2}.
+  \item CV použita v experimentech s počtem bitů, estimátorů a radiusu.
+\end{itemize}
+
+\section{Vysvětlení pojmů}
+\subsection{Model validation}
+\begin{itemize}
+  \item Ověřování, jak dobře model generalizuje na nová data.
+  \item Zahrnuje postupy jako train/test split, cross validation a srovnání metrik.
+  \item Cílem je odhalit overfitting a vybrat stabilní model.
+\end{itemize}
+\subsection{Cross validation}
+\begin{itemize}
+  \item Dataset se rozdělí do více foldů a model se opakovaně trénuje/testuje.
+  \item Výsledek je průměrná metrika přes všechny foldy, tedy robustnější odhad.
+  \item Typicky se používá 5-fold nebo 10-fold.
+\end{itemize}
+\subsection{Train/test split}
+\begin{itemize}
+  \item Jednorázové rozdělení dat na trénovací a testovací část.
+  \item Trénovací data slouží k učení modelu, testovací část k finálnímu ověření.
+  \item Výhodou je jednoduchost, nevýhodou vyšší citlivost na konkrétní split.
+\end{itemize}
+\subsection{Hyperparameter tuning}
+\begin{itemize}
+  \item Hledání nejlepší kombinace hyperparametrů modelu a reprezentace.
+  \item Typicky grid search přes radius, počet bitů a počet estimátorů.
+  \item Cílem je zlepšit výkon bez ztráty interpretovatelnosti.
+\end{itemize}
 
 \section{Použité metody}
 \subsection{Random Forest}
-Pro jeden z prvních modelů byla použita metoda Random Forest.
-Pro QSPR byla užita již zmíněná datová sada AqSolDB.
+\begin{itemize}
+  \item Ensemble rozhodovacích stromů; dobře zvládá vysokodimenzionální binární vstupy.
+  \item Stabilní baseline pro regresi solubility.
+  \item Výsledky slouží jako srovnání pro XGBoost a interpretovatelné metody.
+\end{itemize}
 
 \subsection{XGBoost}
+\begin{itemize}
+  \item Gradient boosting stromů s pravidelným učením.
+  \item Typicky vyšší predikční výkon než Random Forest.
+  \item Testována citlivost na počet estimátorů a parametry fingerprintu.
+\end{itemize}
 
 
 \subsection{SHAP}
+\begin{itemize}
+  \item SHAP hodnoty vysvětlují lokální i globální význam jednotlivých bitů fingerprintu.
+  \item Umožňuje identifikovat strukturní motivy s největším vlivem na predikci.
+  \item Vhodné pro interpretaci stromových modelů.
+\end{itemize}
 \subsection{Boruta-SHAP}
+\begin{itemize}
+  \item Kombinuje Boruta feature selection s SHAP importancí.
+  \item Robustně vybírá významné fingerprint bity oproti náhodným.
+  \item Výsledek: menší, interpretovatelná množina klíčových motivů.
+\end{itemize}
+
+\section{Experimenty}
+\subsection{Train/test split}
+\begin{itemize}
+  \item Trénovací a testovací množina s pevně nastaveným seedem pro konzistentní srovnání.
+  \item Split ratio odpovídá běžné praxi (např. 80/20).
+\end{itemize}
+\subsection{Evaluation metrics}
+\begin{itemize}
+  \item Regresní metriky: MAE, RMSE (případně R\textsuperscript{2}).
+  \item Klasifikační metriky pro binarizovanou variantu: ROC AUC.
+  \item Metriky reportovány jako průměr přes CV foldy.
+\end{itemize}
+\subsection{Hyperparameter tuning}
+\begin{itemize}
+  \item Parametry fingerprintu: radius a počet bitů.
+  \item Parametry modelu: počet estimátorů a další klíčové hyperparametry.
+  \item Sledován kompromis mezi výkonem a interpretovatelností.
+\end{itemize}
 
 
+\section{Vizualizace a výsledky}
+\begin{itemize}
+  \item Grafy výkonu vs. počet bitů a radius fingerprintu.
+  \item Predicted vs. actual (parity plots).
+  \item Histogramy a rankings nejdůležitějších bitů (SHAP/Boruta-SHAP).
+  \item ROC křivky a AUC pro binarizované varianty.
+\end{itemize}
 
-... nějaký ty fancy grafíky here
+\section{Vizualizace strukturních motivů}
+\subsection{Princip mapování}
+\begin{itemize}
+  \item Nejvlivnější bity fingerprintu jsou mapovány na konkrétní chemické fragmenty.
+  \item Vizualizace navazují na seznam top bitů z interpretace SHAP/Boruta-SHAP.
+  \item Motivy s konzistentním vlivem napříč modely jsou prioritizovány.
+\end{itemize}
+\subsection{Výstupy vizualizace}
+\begin{itemize}
+  \item Schémata fragmentů a jejich četnost v datech.
+  \item Ukázky molekul s vyznačenými motivy.
+  \item Shrnutí, které motivy zvyšují či snižují predikovanou solubility (rozpustnost).
+\end{itemize}
 
 \end{document}

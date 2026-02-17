@@ -1,11 +1,11 @@
 from pathlib import Path
 
 # Data
-DATA_PATH = Path(__file__).resolve().parent / "AqSolDB_v1.0_min.csv"
+DATA_PATH = Path(__file__).resolve().parent / "nr_ic_merged.csv"
 
 # ECFP fingerprinting
-ECFP_RADIUS = 4  # number of bond hops (neighbors)
-ECFP_N_BITS = 2048
+ECFP_RADIUS = 2
+ECFP_N_BITS = 4096
 RADIUS_GRID = [1, 2, 3, 4, 5]
 N_BITS_GRID = [64, 128, 256, 512, 1024, 2048, 4096]
 
