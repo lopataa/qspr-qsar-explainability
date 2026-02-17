@@ -27,6 +27,8 @@ from qsar_config import (
     TOP_N_BITS,
 )
 
+CACHE_VERSION = 1
+
 
 def _resolve_repo_root():
     candidates = [
@@ -349,7 +351,10 @@ def main():
     from qspr_common import (
         draw_morgan_bit_grid,
         draw_morgan_bit_overlay,
+        file_signature,
         fingerprint_mol_with_bit_info,
+        load_pickle_cache,
+        save_pickle_cache,
     )
 
     data_path = Path(args.data_path) if args.data_path else DATA_PATH
@@ -366,21 +371,41 @@ def main():
         n_bits=args.n_bits,
     )
     x_df = pd.DataFrame(x, columns=[f"bit_{i}" for i in range(args.n_bits)])
+    data_sig = file_signature(data_path)
+    cache_dir = repo_root / "qsar" / "cache" / "random-forest-motifs"
 
     boruta_n_trials = BORUTA_N_TRIALS if args.boruta_trials is None else args.boruta_trials
     boruta_sample = BORUTA_SAMPLE if args.boruta_sample is None else args.boruta_sample
     boruta_normalize = BORUTA_NORMALIZE if args.boruta_normalize is None else args.boruta_normalize
 
-    model = OneVsRestClassifier(
-        RandomForestClassifier(
-            n_estimators=args.n_estimators,
-            max_depth=None,
-            random_state=args.random_seed,
-            n_jobs=args.n_jobs,
-            class_weight="balanced_subsample",
+    rf_cache_path = cache_dir / "qsar_ovr_rf_model.pkl"
+    rf_cache_meta = {
+        "version": CACHE_VERSION,
+        "kind": "qsar_ovr_rf_model",
+        "data": data_sig,
+        "ecfp_radius": int(args.radius),
+        "ecfp_n_bits": int(args.n_bits),
+        "n_estimators": int(args.n_estimators),
+        "random_seed": int(args.random_seed),
+        "n_jobs": int(args.n_jobs),
+        "target_names": list(target_names),
+    }
+    model = load_pickle_cache(rf_cache_path, rf_cache_meta)
+    if model is None:
+        model = OneVsRestClassifier(
+            RandomForestClassifier(
+                n_estimators=args.n_estimators,
+                max_depth=None,
+                random_state=args.random_seed,
+                n_jobs=args.n_jobs,
+                class_weight="balanced_subsample",
+            )
         )
-    )
-    model.fit(x, y)
+        model.fit(x, y)
+        save_pickle_cache(rf_cache_path, rf_cache_meta, model)
+        rf_cache_status = "miss"
+    else:
+        rf_cache_status = "hit"
     probabilities = _ensure_probability_matrix(
         model.predict_proba(x),
         n_samples=x.shape[0],
@@ -446,19 +471,48 @@ def main():
             )
             stem = target_name
 
-        bit_scores, boruta_meta = _compute_borutashap_bit_scores_for_target(
-            x_df=x_df,
-            y_target=y[:, target_idx],
-            n_bits=args.n_bits,
-            random_seed=args.random_seed,
-            n_jobs=args.n_jobs,
-            boruta_n_trials=boruta_n_trials,
-            boruta_sample=boruta_sample,
-            boruta_normalize=boruta_normalize,
-            boruta_train_or_test=BORUTA_TRAIN_OR_TEST,
-            boruta_rf_n_estimators=BORUTA_RF_N_ESTIMATORS,
-            boruta_rf_max_depth=BORUTA_RF_MAX_DEPTH,
-        )
+        boruta_cache_path = cache_dir / f"boruta_target_{target_name}.pkl"
+        boruta_cache_meta = {
+            "version": CACHE_VERSION,
+            "kind": "qsar_boruta_target_scores",
+            "target_name": str(target_name),
+            "data": data_sig,
+            "ecfp_radius": int(args.radius),
+            "ecfp_n_bits": int(args.n_bits),
+            "random_seed": int(args.random_seed),
+            "n_jobs": int(args.n_jobs),
+            "boruta_n_trials": int(boruta_n_trials),
+            "boruta_sample": bool(boruta_sample),
+            "boruta_normalize": bool(boruta_normalize),
+            "boruta_train_or_test": str(BORUTA_TRAIN_OR_TEST),
+            "boruta_rf_n_estimators": int(BORUTA_RF_N_ESTIMATORS),
+            "boruta_rf_max_depth": int(BORUTA_RF_MAX_DEPTH),
+        }
+        cached_boruta = load_pickle_cache(boruta_cache_path, boruta_cache_meta)
+        if cached_boruta is None:
+            bit_scores, boruta_meta = _compute_borutashap_bit_scores_for_target(
+                x_df=x_df,
+                y_target=y[:, target_idx],
+                n_bits=args.n_bits,
+                random_seed=args.random_seed,
+                n_jobs=args.n_jobs,
+                boruta_n_trials=boruta_n_trials,
+                boruta_sample=boruta_sample,
+                boruta_normalize=boruta_normalize,
+                boruta_train_or_test=BORUTA_TRAIN_OR_TEST,
+                boruta_rf_n_estimators=BORUTA_RF_N_ESTIMATORS,
+                boruta_rf_max_depth=BORUTA_RF_MAX_DEPTH,
+            )
+            save_pickle_cache(
+                boruta_cache_path,
+                boruta_cache_meta,
+                {"bit_scores": bit_scores, "boruta_meta": boruta_meta},
+            )
+            boruta_cache_status = "miss"
+        else:
+            bit_scores = np.asarray(cached_boruta["bit_scores"], dtype=np.float32)
+            boruta_meta = dict(cached_boruta["boruta_meta"])
+            boruta_cache_status = "hit"
 
         try:
             map_img, bit_rows = draw_morgan_bit_grid(
@@ -496,7 +550,8 @@ def main():
 
         print(
             f"[{target_name}] saved map={map_path.name}, overlay={overlay_path.name}, bits={bits_path.name}, "
-            f"selected_p={selected_prob:.4f}, boruta_scope={boruta_meta['scope']}, "
+            f"selected_p={selected_prob:.4f}, cache(rf={rf_cache_status}, boruta={boruta_cache_status}), "
+            f"boruta_scope={boruta_meta['scope']}, "
             f"accepted={boruta_meta['accepted_count']}, positive_scores={boruta_meta['positive_count']}"
         )
         global_rows.append(
@@ -512,6 +567,8 @@ def main():
                 "boruta_tentative_count": boruta_meta["tentative_count"],
                 "boruta_rejected_count": boruta_meta["rejected_count"],
                 "boruta_positive_count": boruta_meta["positive_count"],
+                "rf_cache_status": rf_cache_status,
+                "boruta_cache_status": boruta_cache_status,
                 "map_path": str(map_path),
                 "overlay_path": str(overlay_path),
                 "bits_path": str(bits_path),

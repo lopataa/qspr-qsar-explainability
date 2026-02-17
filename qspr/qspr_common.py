@@ -1,4 +1,5 @@
 from pathlib import Path
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -241,6 +242,7 @@ def draw_morgan_bit_grid(
     max_alpha=0.75,
     low_color=(0.62, 0.86, 0.98),
     high_color=(0.60, 0.46, 0.95),
+    use_svg=False,
 ):
     from rdkit.Chem import Draw
 
@@ -271,7 +273,7 @@ def draw_morgan_bit_grid(
         highlightBondLists=bond_highlights,
         highlightAtomColors=atom_colors,
         highlightBondColors=bond_colors,
-        useSVG=False,
+        useSVG=bool(use_svg),
     )
     return image, bit_summaries
 
@@ -287,6 +289,7 @@ def draw_morgan_bit_overlay(
     max_alpha=0.75,
     low_color=(0.62, 0.86, 0.98),
     high_color=(0.60, 0.46, 0.95),
+    use_svg=False,
 ):
     from rdkit.Chem import Draw
 
@@ -329,7 +332,7 @@ def draw_morgan_bit_overlay(
         highlightBondLists=[sorted(bond_contribs)],
         highlightAtomColors=[atom_colors],
         highlightBondColors=[bond_colors],
-        useSVG=False,
+        useSVG=bool(use_svg),
     )
     return image, bit_summaries
 
@@ -371,3 +374,38 @@ def resolve_output_dir(model_dir_name):
     out_dir = base_dir / OUTPUT_DIRNAME
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
+
+
+def file_signature(path):
+    path = Path(path).resolve()
+    stat = path.stat()
+    return {
+        "path": str(path),
+        "size": int(stat.st_size),
+        "mtime_ns": int(stat.st_mtime_ns),
+    }
+
+
+def load_pickle_cache(cache_path, expected_meta):
+    cache_path = Path(cache_path)
+    if not cache_path.exists():
+        return None
+    try:
+        with cache_path.open("rb") as handle:
+            payload = pickle.load(handle)
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("meta") != expected_meta:
+        return None
+    return payload.get("data")
+
+
+def save_pickle_cache(cache_path, meta, data):
+    cache_path = Path(cache_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"meta": meta, "data": data}
+    with cache_path.open("wb") as handle:
+        pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)

@@ -3,13 +3,14 @@ import argparse
 import re
 import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from rdkit import Chem, RDLogger
+from rdkit.Chem import AllChem
 from sklearn.ensemble import RandomForestClassifier
 
 MODEL_DIR = "random-forest"
-MODEL_NAME = "Random Forest"
 CACHE_VERSION = 1
 
 
@@ -32,15 +33,9 @@ def _sanitize_label(value):
     return cleaned[:60]
 
 
-def _svg_text(svg_obj):
-    if isinstance(svg_obj, bytes):
-        return svg_obj.decode("utf-8")
-    return str(svg_obj)
-
-
 def _build_arg_parser():
     parser = argparse.ArgumentParser(
-        description="Highlight top Random Forest Morgan-bit motifs for a SMILES string."
+        description="Render 3D highlighted Morgan motifs for a QSPR molecule using BorutaShap scores."
     )
     parser.add_argument(
         "--smiles",
@@ -57,14 +52,8 @@ def _build_arg_parser():
     parser.add_argument(
         "--top-n-bits",
         type=int,
-        default=6,
+        default=8,
         help="Number of important active bits to render for the selected molecule.",
-    )
-    parser.add_argument(
-        "--mols-per-row",
-        type=int,
-        default=3,
-        help="How many highlighted motif panels to place in each row.",
     )
     parser.add_argument(
         "--output-prefix",
@@ -90,6 +79,24 @@ def _build_arg_parser():
         default=None,
         help="Enable/disable BorutaShap normalization.",
     )
+    parser.add_argument(
+        "--elev",
+        type=float,
+        default=24.0,
+        help="3D view elevation angle.",
+    )
+    parser.add_argument(
+        "--azim",
+        type=float,
+        default=-62.0,
+        help="3D view azimuth angle.",
+    )
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=260,
+        help="Output image DPI.",
+    )
     return parser
 
 
@@ -107,7 +114,6 @@ def _patch_borutashap_for_current_dependencies():
     import scipy.stats as stats
     from scipy.stats import binomtest
 
-    # Compatibility shims for newer numpy/scipy releases used by BorutaShap internals.
     if not hasattr(np, "float"):
         np.float = float
     if not hasattr(np, "int"):
@@ -126,7 +132,6 @@ def _patch_borutashap_for_current_dependencies():
     import shap
     from BorutaShap import BorutaShap
 
-    # Patch BorutaShap.explain for SHAP outputs shaped as (n_samples, n_features, n_outputs).
     def _patched_explain(self):
         explainer = shap.TreeExplainer(
             self.model,
@@ -188,7 +193,6 @@ def _compute_borutashap_bit_scores(
         importance_measure="shap",
         classification=True,
     )
-
     selector.fit(
         X=x_df,
         y=y,
@@ -208,9 +212,6 @@ def _compute_borutashap_bit_scores(
         raw_scores[bit_idx] = float(score)
 
     accepted = [str(name) for name in getattr(selector, "accepted", [])]
-    rejected = [str(name) for name in getattr(selector, "rejected", [])]
-    tentative = [str(name) for name in getattr(selector, "tentative", [])]
-
     accepted_mask = np.zeros((n_bits,), dtype=bool)
     for feature_name in accepted:
         bit_idx = _parse_bit_index(feature_name)
@@ -229,15 +230,222 @@ def _compute_borutashap_bit_scores(
         bit_scores = np.abs(raw_scores).astype(np.float32)
         scope = f"{scope}_abs_fallback"
 
-    metadata = {
+    meta = {
         "scope": scope,
         "score_source": "history_x_mean",
         "accepted_count": len(accepted),
-        "rejected_count": len(rejected),
-        "tentative_count": len(tentative),
+        "tentative_count": len(getattr(selector, "tentative", [])),
+        "rejected_count": len(getattr(selector, "rejected", [])),
         "positive_count": int(np.count_nonzero(bit_scores > 0)),
     }
-    return bit_scores, metadata
+    return bit_scores, meta
+
+
+def _normalize_scores(values):
+    values = np.asarray(values, dtype=np.float32)
+    if values.size == 0:
+        return np.asarray([], dtype=np.float32)
+    low = float(values.min())
+    high = float(values.max())
+    if np.isclose(low, high):
+        return np.ones_like(values)
+    return (values - low) / (high - low)
+
+
+def _lerp_rgb(color_a, color_b, t):
+    return tuple(float(color_a[i] + (color_b[i] - color_a[i]) * t) for i in range(3))
+
+
+def _rank_bits_for_mol(bit_info_map, bit_scores, top_n):
+    rows = []
+    for bit, occurrences in bit_info_map.items():
+        score = float(bit_scores[bit])
+        if score <= 0:
+            continue
+        rows.append((int(bit), score, len(occurrences)))
+    rows.sort(key=lambda x: x[1], reverse=True)
+    return rows[:top_n]
+
+
+def _atom_and_bond_payload(mol, bit_info_map, bit_scores, top_n):
+    ranked = _rank_bits_for_mol(bit_info_map, bit_scores, top_n=top_n)
+    if not ranked:
+        raise ValueError("No active bits with positive score were found for this molecule.")
+
+    score_values = [score for _, score, _ in ranked]
+    norm_scores = _normalize_scores(score_values)
+    low_color = (0.62, 0.86, 0.98)
+    high_color = (0.60, 0.46, 0.95)
+    min_alpha, max_alpha = 0.0, 0.75
+
+    atom_values = {}
+    bond_values = {}
+    bit_rows = []
+
+    for idx, (bit, score, occurrences_count) in enumerate(ranked):
+        rank = idx + 1
+        norm = float(norm_scores[idx])
+        alpha = float(min_alpha + (max_alpha - min_alpha) * norm)
+        rgb = _lerp_rgb(low_color, high_color, norm)
+        rgba = (*rgb, alpha)
+
+        highlight_atoms = set()
+        highlight_bonds = set()
+        fragments = set()
+
+        for center_atom_idx, radius in bit_info_map[bit]:
+            env = list(Chem.FindAtomEnvironmentOfRadiusN(mol, radius, center_atom_idx))
+            atoms = {center_atom_idx}
+            for bond_id in env:
+                bond = mol.GetBondWithIdx(bond_id)
+                atoms.add(bond.GetBeginAtomIdx())
+                atoms.add(bond.GetEndAtomIdx())
+
+            highlight_atoms.update(atoms)
+            highlight_bonds.update(env)
+
+            fragment = Chem.MolFragmentToSmiles(
+                mol,
+                atomsToUse=sorted(atoms),
+                bondsToUse=sorted(env),
+                canonical=True,
+                isomericSmiles=False,
+            )
+            if fragment:
+                fragments.add(fragment)
+
+        for atom_idx in highlight_atoms:
+            atom_values.setdefault(atom_idx, []).append((rgba, norm))
+        for bond_idx in highlight_bonds:
+            bond_values.setdefault(bond_idx, []).append((rgba, norm))
+
+        bit_rows.append(
+            {
+                "rank": rank,
+                "bit": bit,
+                "importance": score,
+                "importance_norm": norm,
+                "highlight_alpha": alpha,
+                "occurrences": occurrences_count,
+                "fragments": "; ".join(sorted(fragments)),
+            }
+        )
+
+    atom_styles = {}
+    for atom_idx, values in atom_values.items():
+        values_sorted = sorted(values, key=lambda x: x[1], reverse=True)
+        rgba = values_sorted[0][0]
+        atom_styles[atom_idx] = {"rgba": rgba, "norm": values_sorted[0][1]}
+
+    bond_styles = {}
+    for bond_idx, values in bond_values.items():
+        values_sorted = sorted(values, key=lambda x: x[1], reverse=True)
+        rgba = values_sorted[0][0]
+        bond_styles[bond_idx] = {"rgba": rgba, "norm": values_sorted[0][1]}
+
+    return atom_styles, bond_styles, bit_rows
+
+
+def _build_3d_mol(base_mol, random_seed):
+    mol = Chem.AddHs(Chem.Mol(base_mol))
+    params = AllChem.ETKDGv3()
+    params.randomSeed = int(random_seed)
+    params.useRandomCoords = True
+    status = AllChem.EmbedMolecule(mol, params)
+    if status != 0:
+        raise ValueError("RDKit could not generate a 3D conformer for this molecule.")
+    try:
+        AllChem.MMFFOptimizeMolecule(mol, maxIters=300)
+    except Exception:
+        pass
+    return Chem.RemoveHs(mol)
+
+
+def _set_equal_axes(ax, coords):
+    mins = coords.min(axis=0)
+    maxs = coords.max(axis=0)
+    mid = (mins + maxs) / 2.0
+    max_range = float((maxs - mins).max()) * 0.60 + 0.20
+    ax.set_xlim(mid[0] - max_range, mid[0] + max_range)
+    ax.set_ylim(mid[1] - max_range, mid[1] + max_range)
+    ax.set_zlim(mid[2] - max_range, mid[2] + max_range)
+
+
+def _render_3d_overlay(mol3d, atom_styles, bond_styles, output_path, elev, azim, dpi):
+    conf = mol3d.GetConformer()
+    coords = np.asarray(
+        [[conf.GetAtomPosition(i).x, conf.GetAtomPosition(i).y, conf.GetAtomPosition(i).z] for i in range(mol3d.GetNumAtoms())],
+        dtype=np.float32,
+    )
+
+    fig = plt.figure(figsize=(8.2, 6.8))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.set_facecolor("white")
+
+    for bond in mol3d.GetBonds():
+        i = bond.GetBeginAtomIdx()
+        j = bond.GetEndAtomIdx()
+        xs = [coords[i, 0], coords[j, 0]]
+        ys = [coords[i, 1], coords[j, 1]]
+        zs = [coords[i, 2], coords[j, 2]]
+        style = bond_styles.get(bond.GetIdx())
+        if style is None:
+            ax.plot(xs, ys, zs, color=(0.55, 0.58, 0.62), alpha=0.30, linewidth=1.5, zorder=1)
+        else:
+            rgba = style["rgba"]
+            ax.plot(xs, ys, zs, color=rgba[:3], alpha=max(0.30, rgba[3]), linewidth=2.8, zorder=2)
+
+    atom_colors = []
+    atom_sizes = []
+    for atom_idx in range(mol3d.GetNumAtoms()):
+        style = atom_styles.get(atom_idx)
+        if style is None:
+            atom_colors.append((0.67, 0.70, 0.74, 0.42))
+            atom_sizes.append(56)
+        else:
+            rgba = style["rgba"]
+            atom_colors.append((rgba[0], rgba[1], rgba[2], max(0.35, rgba[3])))
+            atom_sizes.append(130 + 140 * style["norm"])
+
+    ax.scatter(
+        coords[:, 0],
+        coords[:, 1],
+        coords[:, 2],
+        s=atom_sizes,
+        c=atom_colors,
+        edgecolors=(0.10, 0.10, 0.10, 0.35),
+        linewidths=0.5,
+        depthshade=True,
+        zorder=3,
+    )
+
+    for atom_idx, style in atom_styles.items():
+        atom = mol3d.GetAtomWithIdx(atom_idx)
+        x, y, z = coords[atom_idx]
+        ax.text(
+            x,
+            y,
+            z,
+            atom.GetSymbol(),
+            fontsize=8,
+            color=style["rgba"][:3],
+            alpha=0.9,
+            zorder=4,
+        )
+
+    _set_equal_axes(ax, coords)
+    ax.view_init(elev=elev, azim=azim)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
+    ax.grid(False)
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.fill = False
+        axis.pane.set_edgecolor("white")
+
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=dpi, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
 
 
 def main():
@@ -264,8 +472,6 @@ def main():
     )
     from qspr_common import (
         build_feature_matrix_with_metadata,
-        draw_morgan_bit_grid,
-        draw_morgan_bit_overlay,
         file_signature,
         fingerprint_mol_with_bit_info,
         load_pickle_cache,
@@ -364,7 +570,6 @@ def main():
         target_mol = Chem.MolFromSmiles(target_smiles)
         if target_mol is None:
             raise SystemExit(f"Invalid SMILES: {target_smiles}")
-
         target_vector, target_bit_info = fingerprint_mol_with_bit_info(
             target_mol,
             radius=ECFP_RADIUS,
@@ -392,39 +597,13 @@ def main():
 
     probability = float(rf.predict_proba(target_vector.reshape(1, -1))[0, 1])
 
-    try:
-        grid_image, bit_summaries = draw_morgan_bit_grid(
-            mol=target_mol,
-            bit_info_map=target_bit_info,
-            bit_scores=bit_scores,
-            top_n=args.top_n_bits,
-            mols_per_row=args.mols_per_row,
-        )
-        grid_svg, _ = draw_morgan_bit_grid(
-            mol=target_mol,
-            bit_info_map=target_bit_info,
-            bit_scores=bit_scores,
-            top_n=args.top_n_bits,
-            mols_per_row=args.mols_per_row,
-            use_svg=True,
-        )
-        overlay_image, _ = draw_morgan_bit_overlay(
-            mol=target_mol,
-            bit_info_map=target_bit_info,
-            bit_scores=bit_scores,
-            top_n=args.top_n_bits,
-            mols_per_row=args.mols_per_row,
-        )
-        overlay_svg, _ = draw_morgan_bit_overlay(
-            mol=target_mol,
-            bit_info_map=target_bit_info,
-            bit_scores=bit_scores,
-            top_n=args.top_n_bits,
-            mols_per_row=args.mols_per_row,
-            use_svg=True,
-        )
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
+    atom_styles, bond_styles, bit_rows = _atom_and_bond_payload(
+        mol=target_mol,
+        bit_info_map=target_bit_info,
+        bit_scores=bit_scores,
+        top_n=args.top_n_bits,
+    )
+    mol3d = _build_3d_mol(target_mol, random_seed=RANDOM_SEED)
 
     if args.output_prefix:
         output_prefix = args.output_prefix
@@ -435,22 +614,23 @@ def main():
 
     out_dir = qspr_root / MODEL_DIR / OUTPUT_DIRNAME
     out_dir.mkdir(parents=True, exist_ok=True)
+    image_path = out_dir / f"{output_prefix}_motif_3d_overlay.png"
+    bits_path = out_dir / f"{output_prefix}_motif_3d_bits.csv"
 
-    grid_image_path = out_dir / f"{output_prefix}_motif_grid.png"
-    overlay_image_path = out_dir / f"{output_prefix}_motif_overlay.png"
-    grid_svg_path = out_dir / f"{output_prefix}_motif_grid.svg"
-    overlay_svg_path = out_dir / f"{output_prefix}_motif_overlay.svg"
-    csv_path = out_dir / f"{output_prefix}_motif_bits.csv"
+    _render_3d_overlay(
+        mol3d=mol3d,
+        atom_styles=atom_styles,
+        bond_styles=bond_styles,
+        output_path=image_path,
+        elev=args.elev,
+        azim=args.azim,
+        dpi=args.dpi,
+    )
 
-    grid_image.save(grid_image_path)
-    overlay_image.save(overlay_image_path)
-    grid_svg_path.write_text(_svg_text(grid_svg), encoding="utf-8")
-    overlay_svg_path.write_text(_svg_text(overlay_svg), encoding="utf-8")
-
-    summary_df = pd.DataFrame(bit_summaries)
+    summary_df = pd.DataFrame(bit_rows)
     summary_df.insert(0, "smiles", target_smiles)
     summary_df.insert(1, "rf_predicted_p_soluble", probability)
-    summary_df.to_csv(csv_path, index=False)
+    summary_df.to_csv(bits_path, index=False)
 
     print(f"Trained on {len(df)} molecules. Binary cutoff (median solubility): {cutoff:.5f}")
     print(f"Cache: rf={rf_cache_status}, boruta={boruta_cache_status}")
@@ -469,22 +649,8 @@ def main():
     print(f"Selected molecule ID: {target_id}")
     print(f"Selected SMILES: {target_smiles}")
     print(f"RF predicted P(soluble): {probability:.4f}")
-    print(f"Saved grid image: {grid_image_path}")
-    print(f"Saved overlay image: {overlay_image_path}")
-    print(f"Saved grid SVG: {grid_svg_path}")
-    print(f"Saved overlay SVG: {overlay_svg_path}")
-    print(f"Saved bit summary: {csv_path}")
-    columns_to_print = [
-        "rank",
-        "bit",
-        "importance",
-        "importance_norm",
-        "highlight_alpha",
-        "occurrences",
-        "fragments",
-    ]
-    available_columns = [col for col in columns_to_print if col in summary_df.columns]
-    print(summary_df[available_columns].to_string(index=False))
+    print(f"Saved 3D overlay image: {image_path}")
+    print(f"Saved 3D bit summary: {bits_path}")
 
 
 if __name__ == "__main__":
