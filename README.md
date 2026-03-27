@@ -11,14 +11,14 @@
 
 ## Environment
 
-The project currently declares Python `>=3.11` in [`pyproject.toml`](/Users/michael/dev/delta/qspr-explainability/pyproject.toml), and the notebook/scientific stack is pinned in [`requirements.txt`](/Users/michael/dev/delta/qspr-explainability/requirements.txt).
+The project declares Python `>=3.11` and pins the notebook/scientific stack directly in [`pyproject.toml`](/Users/michael/dev/delta/qspr-explainability/pyproject.toml).
 
 Example setup with `uv`:
 
 ```bash
 uv venv .venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
+uv sync
 ```
 
 ## Typical workflows

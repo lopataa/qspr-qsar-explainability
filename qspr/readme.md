@@ -2,11 +2,11 @@
 
 ## Environment (uv)
 
-Run from the `qspr` directory:
+Run from the repository root:
 
 ```
 uv venv .venv
-uv pip install -r ../requirements.txt
+uv sync
 ```
 
 ## Random Forest motif visualization
