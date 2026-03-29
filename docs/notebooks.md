@@ -34,6 +34,12 @@ This notebook runs cross-validation for the XGBoost QSAR classifier. It reports 
 ### `qsar/xgboost/xgboost-parameter-testing.ipynb`
 This notebook tests selected XGBoost hyperparameters for the QSAR classification task. It provides a controlled comparison of parameter settings.
 
+### `qsar/model_performance_comparison.ipynb`
+This notebook compares Random Forest and XGBoost performance on the same QSAR train/test split. It exports per-target ROC-AUC values and a summary table with mean ROC-AUC per model.
+
+### `qsar/explainability_comparison.ipynb`
+This notebook compares explainability outputs from RF and XGB by combining SHAP and BorutaShap values into one feature-level table. It also exports target-level Spearman correlation summaries for cross-method and cross-model alignment.
+
 ## QSPR notebooks
 
 ### `qspr/ecfp.ipynb`
