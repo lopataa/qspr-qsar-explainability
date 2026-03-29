@@ -25,6 +25,8 @@ uv sync
 
 Open notebooks under `qsar/`, `qspr/`, and `common/` for model training, parameter sweeps, cross-validation, and explainability experiments.
 
+Notebook-by-notebook notes for both QSAR and QSPR are available in [`docs/notebooks.md`](docs/notebooks.md).
+
 The QSPR motif visualization workflow is documented in [`qspr/readme.md`](/Users/michael/dev/delta/qspr-explainability/qspr/readme.md). Example:
 
 ```bash

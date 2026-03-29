@@ -2,6 +2,8 @@
 
 ## Environment (uv)
 
+Notebook-by-notebook descriptions for both QSAR and QSPR are in [`../docs/notebooks.md`](../docs/notebooks.md).
+
 Run from the repository root:
 
 ```
