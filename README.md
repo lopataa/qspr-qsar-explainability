@@ -11,7 +11,7 @@
 
 ## Environment
 
-The project declares Python `>=3.11` and pins the notebook/scientific stack directly in [`pyproject.toml`](/Users/michael/dev/delta/qspr-explainability/pyproject.toml).
+The project declares Python `>=3.11` and pins the notebook/scientific stack directly in [`pyproject.toml`](pyproject.toml).
 
 Example setup with `uv`:
 
@@ -27,7 +27,7 @@ Open notebooks under `qsar/`, `qspr/`, and `common/` for model training, paramet
 
 Notebook-by-notebook notes for both QSAR and QSPR are available in [`docs/notebooks.md`](docs/notebooks.md).
 
-The QSPR motif visualization workflow is documented in [`qspr/readme.md`](/Users/michael/dev/delta/qspr-explainability/qspr/readme.md). Example:
+The QSPR motif visualization workflow is documented in [`qspr/readme.md`](qspr/readme.md). Example:
 
 ```bash
 ./.venv/bin/python qspr/random-forest/smiles_motif_visualization.py \
@@ -40,7 +40,7 @@ Generated figures and CSV summaries are typically written into `outputs/` or `ca
 
 The repository also includes a shared CLI for global ECFP fragment visualization:
 
-[`common/global_ecfp_visualization.py`](/Users/michael/dev/delta/qspr-explainability/common/global_ecfp_visualization.py)
+[`common/global_ecfp_visualization.py`](common/global_ecfp_visualization.py)
 
 It renders a single-molecule similarity map from globally important Morgan fingerprint fragments and supports both repository branches:
 

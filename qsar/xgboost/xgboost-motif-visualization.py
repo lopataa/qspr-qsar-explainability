@@ -11,9 +11,9 @@ import numpy as np
 import pandas as pd
 from rdkit import Chem, DataStructs
 from rdkit.Chem import rdFingerprintGenerator
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.preprocessing import OneHotEncoder
+from xgboost import XGBClassifier
 
 from qsar_config import (
     BORUTA_NORMALIZE,
@@ -33,6 +33,10 @@ from qsar_config import (
 )
 
 CACHE_VERSION = 1
+XGB_MAX_DEPTH = 6
+XGB_LEARNING_RATE = 0.05
+XGB_SUBSAMPLE = 0.8
+XGB_COLSAMPLE_BYTREE = 0.8
 
 
 def _resolve_repo_root():
@@ -49,7 +53,7 @@ def _resolve_repo_root():
 
 def _parse_args():
     parser = argparse.ArgumentParser(
-        description="Generate QSAR motif maps/overlays per activity type using Random Forest."
+        description="Generate QSAR motif maps/overlays per activity type using XGBoost."
     )
     parser.add_argument(
         "--smiles",
@@ -79,7 +83,7 @@ def _parse_args():
         "--n-estimators",
         type=int,
         default=N_ESTIMATORS,
-        help="RandomForest n_estimators for each one-vs-rest classifier.",
+        help="XGBoost n_estimators for each one-vs-rest classifier.",
     )
     parser.add_argument(
         "--top-n-bits",
@@ -103,13 +107,13 @@ def _parse_args():
         "--n-jobs",
         type=int,
         default=N_JOBS,
-        help="CPU workers for RandomForest.",
+        help="CPU workers for XGBoost.",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Optional output directory (defaults to qsar/outputs/random-forest-motifs).",
+        help="Optional output directory (defaults to qsar/outputs/xgboost-motifs).",
     )
     parser.add_argument(
         "--boruta-trials",
@@ -269,12 +273,16 @@ def _compute_borutashap_bit_scores_for_target(
     BorutaShap = _patch_borutashap_for_current_dependencies()
 
     selector = BorutaShap(
-        model=RandomForestClassifier(
+        model=XGBClassifier(
             n_estimators=boruta_rf_n_estimators,
             max_depth=boruta_rf_max_depth,
-            n_jobs=n_jobs,
+            learning_rate=XGB_LEARNING_RATE,
+            subsample=XGB_SUBSAMPLE,
+            colsample_bytree=XGB_COLSAMPLE_BYTREE,
             random_state=random_seed,
-            class_weight="balanced_subsample",
+            tree_method="hist",
+            eval_metric="logloss",
+            n_jobs=n_jobs,
         ),
         importance_measure="shap",
         classification=True,
@@ -366,7 +374,7 @@ def main():
     out_dir = (
         Path(args.output_dir)
         if args.output_dir
-        else (repo_root / "qsar" / OUTPUT_DIRNAME / "random-forest-motifs")
+        else (repo_root / "qsar" / OUTPUT_DIRNAME / "xgboost-motifs")
     )
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -377,40 +385,48 @@ def main():
     )
     x_df = pd.DataFrame(x, columns=[f"bit_{i}" for i in range(args.n_bits)])
     data_sig = file_signature(data_path)
-    cache_dir = repo_root / "qsar" / "cache" / "random-forest-motifs"
+    cache_dir = repo_root / "qsar" / "cache" / "xgboost-motifs"
 
     boruta_n_trials = BORUTA_N_TRIALS if args.boruta_trials is None else args.boruta_trials
     boruta_sample = BORUTA_SAMPLE if args.boruta_sample is None else args.boruta_sample
     boruta_normalize = BORUTA_NORMALIZE if args.boruta_normalize is None else args.boruta_normalize
 
-    rf_cache_path = cache_dir / "qsar_ovr_rf_model.pkl"
-    rf_cache_meta = {
+    model_cache_path = cache_dir / "qsar_ovr_xgb_model.pkl"
+    model_cache_meta = {
         "version": CACHE_VERSION,
-        "kind": "qsar_ovr_rf_model",
+        "kind": "qsar_ovr_xgb_model",
         "data": data_sig,
         "ecfp_radius": int(args.radius),
         "ecfp_n_bits": int(args.n_bits),
         "n_estimators": int(args.n_estimators),
+        "max_depth": int(XGB_MAX_DEPTH),
+        "learning_rate": float(XGB_LEARNING_RATE),
+        "subsample": float(XGB_SUBSAMPLE),
+        "colsample_bytree": float(XGB_COLSAMPLE_BYTREE),
         "random_seed": int(args.random_seed),
         "n_jobs": int(args.n_jobs),
         "target_names": list(target_names),
     }
-    model = load_pickle_cache(rf_cache_path, rf_cache_meta)
+    model = load_pickle_cache(model_cache_path, model_cache_meta)
     if model is None:
         model = OneVsRestClassifier(
-            RandomForestClassifier(
+            XGBClassifier(
                 n_estimators=args.n_estimators,
-                max_depth=None,
+                max_depth=XGB_MAX_DEPTH,
+                learning_rate=XGB_LEARNING_RATE,
+                subsample=XGB_SUBSAMPLE,
+                colsample_bytree=XGB_COLSAMPLE_BYTREE,
                 random_state=args.random_seed,
+                tree_method="hist",
+                eval_metric="logloss",
                 n_jobs=args.n_jobs,
-                class_weight="balanced_subsample",
             )
         )
         model.fit(x, y)
-        save_pickle_cache(rf_cache_path, rf_cache_meta, model)
-        rf_cache_status = "miss"
+        save_pickle_cache(model_cache_path, model_cache_meta, model)
+        model_cache_status = "miss"
     else:
-        rf_cache_status = "hit"
+        model_cache_status = "hit"
     probabilities = _ensure_probability_matrix(
         model.predict_proba(x),
         n_samples=x.shape[0],
@@ -555,7 +571,7 @@ def main():
 
         print(
             f"[{target_name}] saved map={map_path.name}, overlay={overlay_path.name}, bits={bits_path.name}, "
-            f"selected_p={selected_prob:.4f}, cache(rf={rf_cache_status}, boruta={boruta_cache_status}), "
+            f"selected_p={selected_prob:.4f}, cache(xgb={model_cache_status}, boruta={boruta_cache_status}), "
             f"boruta_scope={boruta_meta['scope']}, "
             f"accepted={boruta_meta['accepted_count']}, positive_scores={boruta_meta['positive_count']}"
         )
@@ -572,7 +588,7 @@ def main():
                 "boruta_tentative_count": boruta_meta["tentative_count"],
                 "boruta_rejected_count": boruta_meta["rejected_count"],
                 "boruta_positive_count": boruta_meta["positive_count"],
-                "rf_cache_status": rf_cache_status,
+                "xgb_cache_status": model_cache_status,
                 "boruta_cache_status": boruta_cache_status,
                 "map_path": str(map_path),
                 "overlay_path": str(overlay_path),
