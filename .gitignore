@@ -45,5 +45,7 @@ tmp/
 # Generated experiment artifacts
 cache/
 outputs/
+checkpoints/
 **/cache/
 **/outputs/
+**/checkpoints/
