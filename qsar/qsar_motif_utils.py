@@ -1,7 +1,9 @@
 from pathlib import Path
+import io
 import pickle
 
 import numpy as np
+from PIL import Image
 
 
 def fingerprint_mol_with_bit_info(mol, radius, n_bits, generator=None):
@@ -265,6 +267,77 @@ def draw_morgan_bit_overlay(
         useSVG=bool(use_svg),
     )
     return image, bit_summaries
+
+
+def compute_atom_weights_from_top_bits(
+    mol,
+    bit_info_map,
+    bit_scores,
+    top_n,
+    aggregation="sum",
+):
+    if aggregation not in {"sum", "mean"}:
+        raise ValueError("aggregation must be either 'sum' or 'mean'.")
+
+    ranked_bits = rank_active_morgan_bits(bit_info_map, bit_scores, top_n=top_n)
+    if not ranked_bits:
+        raise ValueError("No active bits with positive score were found for this molecule.")
+
+    n_atoms = int(mol.GetNumAtoms())
+    atom_weights = np.zeros((n_atoms,), dtype=np.float32)
+    atom_counts = np.zeros((n_atoms,), dtype=np.int32)
+
+    for bit, score, _ in ranked_bits:
+        score_value = float(score)
+        for center_atom_idx, radius in bit_info_map.get(int(bit), []):
+            atom_ids, _ = _morgan_environment_atoms_and_bonds(mol, center_atom_idx, radius)
+            for atom_idx in atom_ids:
+                atom_weights[int(atom_idx)] += score_value
+                atom_counts[int(atom_idx)] += 1
+
+    if aggregation == "mean":
+        mask = atom_counts > 0
+        atom_weights[mask] = atom_weights[mask] / atom_counts[mask]
+
+    return atom_weights
+
+
+def render_similarity_map_image(mol, atom_weights, draw_size=700):
+    from rdkit.Chem import Draw
+    from rdkit.Chem.Draw import SimilarityMaps
+
+    drawer = Draw.MolDraw2DCairo(int(draw_size), int(draw_size))
+    SimilarityMaps.GetSimilarityMapFromWeights(mol, list(map(float, atom_weights)), draw2d=drawer)
+    drawer.FinishDrawing()
+    return Image.open(io.BytesIO(drawer.GetDrawingText())).convert("RGBA")
+
+
+def save_similarity_map_png(mol, atom_weights, output_path, draw_size=700):
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    image = render_similarity_map_image(mol, atom_weights, draw_size=draw_size)
+    image.save(output_path)
+    return output_path
+
+
+def save_similarity_map_svg(mol, atom_weights, output_path, draw_size=700):
+    from rdkit.Chem.Draw import SimilarityMaps, rdMolDraw2D
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    drawer = rdMolDraw2D.MolDraw2DSVG(int(draw_size), int(draw_size))
+    SimilarityMaps.GetSimilarityMapFromWeights(mol, list(map(float, atom_weights)), draw2d=drawer)
+    drawer.FinishDrawing()
+    output_path.write_text(drawer.GetDrawingText(), encoding="utf-8")
+    return output_path
+
+
+def render_plain_molecule_image(mol, draw_size=700):
+    from rdkit.Chem import Draw
+
+    image = Draw.MolToImage(mol, size=(int(draw_size), int(draw_size)))
+    return image.convert("RGBA")
 
 
 def file_signature(path):
