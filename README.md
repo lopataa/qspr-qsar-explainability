@@ -3,9 +3,9 @@
 ## Project structure
 
 - `common/` shared utilities for ECFP generation and visualization
+- `docs/` LaTeX sources
 - `qsar/` classification-oriented QSAR notebooks, configs, datasets, and generated outputs
 - `qspr/` regression-oriented QSPR notebooks, configs, datasets, and motif visualization scripts
-- `docs/` LaTeX sources
 - `out/` compiled document artifacts
 - `tmp/` local scratch outputs
 
