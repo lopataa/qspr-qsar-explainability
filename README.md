@@ -34,6 +34,13 @@ The QSPR motif visualization workflow is documented in [`qspr/readme.md`](qspr/r
   --smiles "CC(=O)OC1=CC=CC=C1C(=O)O"
 ```
 
+The QSAR motif visualization workflow is documented in [`qsar/README.md`](qsar/README.md). Example:
+
+```bash
+./.venv/bin/python qsar/random-forest/random-forest-motif-visualization.py \
+  --smiles "CC(=O)OC1=CC=CC=C1C(=O)O"
+```
+
 Generated figures and CSV summaries are typically written into `outputs/` or `cache/` folders inside the corresponding experiment directories.
 
 ## CLI tools

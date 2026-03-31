@@ -1,4 +1,4 @@
-# Identifikace strukturních motivů chemických látek klíčových pro rozhodování u regresních QSPR modelů
+# Identification and visualization of structural motifs in chemical compounds that are key to decision-making in QSAR and QSPR models
 
 ## Environment (uv)
 

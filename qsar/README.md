@@ -1,4 +1,4 @@
-# Identifikace strukturnich motivu chemickych latek klicovych pro rozhodovani u klasifikacnich QSAR modelu
+# Identification and visualization of structural motifs in chemical compounds that are key to decision-making in QSAR and QSPR models
 
 ## Environment (uv)
 
