@@ -1,4 +1,4 @@
-# qspr-explainability
+# Identification and visualization of structural motifs in chemical compounds that are key to decision-making in QSAR and QSPR models
 
 ## Project structure
 
